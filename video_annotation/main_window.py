@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
+    QFileDialog,
     QMainWindow,
+    QMessageBox,
     QSlider,
     QStatusBar,
     QVBoxLayout,
@@ -60,3 +63,47 @@ class MainWindow(QMainWindow):
         # Status bar
         self.setStatusBar(QStatusBar(self))
         self.statusBar().showMessage("No video loaded")
+
+        self._open_action.triggered.connect(self._open_video)
+
+    def _open_video(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Video",
+            "",
+            "Video files (*.mp4 *.avi *.mov *.mkv *.webm);;All files (*)",
+        )
+        if not path:
+            return
+        try:
+            new_video = VideoSource(path)
+        except Exception as e:
+            QMessageBox.warning(self, "Open Video", f"Could not open video:\n{e}")
+            return
+
+        # Replace any existing video.
+        if self._video is not None:
+            self._video.close()
+        self._video = new_video
+        self._trajectory = None
+        self._current_frame = 0
+
+        self._slider.setEnabled(True)
+        self._slider.setRange(0, max(0, new_video.total_frames - 1))
+        self._slider.setValue(0)
+        self._plots.configure(new_video.total_frames, new_video.width, new_video.height)
+        self._plots.set_trajectory(None)
+        self._plots.set_current_frame(0)
+        self._image_view.show_frame(new_video.get_frame(0), marker=None)
+
+        self.setWindowTitle(f"Video Annotation — {Path(path).name}")
+        self._update_status()
+
+    def _update_status(self) -> None:
+        if self._video is None:
+            self.statusBar().showMessage("No video loaded")
+            return
+        self.statusBar().showMessage(
+            f"Frame {self._current_frame}/{self._video.total_frames - 1}"
+            f"  •  {self._video.width}×{self._video.height}"
+        )
