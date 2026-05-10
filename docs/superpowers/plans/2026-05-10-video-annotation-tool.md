@@ -16,20 +16,24 @@
 
 ## File Structure
 
-| Path                                   | Responsibility                                                            |
-| -------------------------------------- | ------------------------------------------------------------------------- |
-| `pyproject.toml`                       | Project metadata + dependency list                                        |
-| `video_annotation/__init__.py`         | Package marker (empty)                                                    |
-| `video_annotation/__main__.py`         | `python -m video_annotation` entry point — instantiates QApp + MainWindow |
-| `video_annotation/video_source.py`     | `VideoSource` class wrapping `cv2.VideoCapture` with LRU frame cache; `VideoOpenError` |
-| `video_annotation/tracker.py`          | `Trajectory` dataclass; `track()` pure function running pyramidal LK ±10 frames |
-| `video_annotation/image_view.py`       | `ImageView` widget — zoom/pan/right-click, renders frame + marker          |
-| `video_annotation/plots.py`            | `DualPlot` widget — two stacked PlotWidgets, vertical line, click-to-seek  |
-| `video_annotation/main_window.py`      | `MainWindow` — assembles widgets, owns state, wires all signals            |
-| `tests/__init__.py`                    | Package marker (empty)                                                    |
-| `tests/test_video_source.py`           | Unit tests for `VideoSource`                                              |
-| `tests/test_tracker.py`                | Unit tests for `track()` against `test_video.mp4`                         |
-| `tests/conftest.py`                    | Shared pytest fixture: path to `test_video.mp4`                           |
+```
+VideoAnnotationTool/
+├── pyproject.toml                 # project metadata + dependency list
+├── test_video.mp4                 # bundled test fixture (already present)
+├── video_annotation/
+│   ├── __init__.py                # package marker (empty)
+│   ├── __main__.py                # `python -m video_annotation` entry point — instantiates QApp + MainWindow
+│   ├── video_source.py            # VideoSource class wrapping cv2.VideoCapture with LRU frame cache; VideoOpenError
+│   ├── tracker.py                 # Trajectory dataclass; track() pure function running pyramidal LK ±10 frames
+│   ├── image_view.py              # ImageView widget — zoom/pan/right-click, renders frame + marker
+│   ├── plots.py                   # DualPlot widget — two stacked PlotWidgets, vertical line, click-to-seek
+│   └── main_window.py             # MainWindow — assembles widgets, owns state, wires all signals
+└── tests/
+    ├── __init__.py                # package marker (empty)
+    ├── conftest.py                # shared pytest fixture: path to test_video.mp4
+    ├── test_video_source.py       # unit tests for VideoSource
+    └── test_tracker.py            # unit tests for track() against test_video.mp4
+```
 
 Each Python module is expected to stay under ~150 lines. If `main_window.py` grows past ~250 lines during implementation, that's the signal to split out the signal-wiring helpers.
 
