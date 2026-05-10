@@ -67,3 +67,53 @@ def test_track_clamps_at_video_end(test_video_path):
         assert all(f <= seed for f in traj.points)
     finally:
         src.close()
+
+
+def test_track_backward_within_bounds(test_video_path):
+    src = VideoSource(str(test_video_path))
+    try:
+        seed = src.total_frames // 2
+        x, y = src.width / 2, src.height / 2
+        traj = track(src, seed, x, y)
+        backward_frames = [f for f in traj.points if f < seed]
+        assert len(backward_frames) <= 10
+        for f in backward_frames:
+            assert f >= 0
+            px, py = traj.points[f]
+            assert 0 <= px < src.width
+            assert 0 <= py < src.height
+    finally:
+        src.close()
+
+
+def test_track_clamps_at_video_start(test_video_path):
+    src = VideoSource(str(test_video_path))
+    try:
+        seed = 0
+        x, y = src.width / 2, src.height / 2
+        traj = track(src, seed, x, y)
+        assert min(traj.points) >= 0
+        # No backward propagation possible.
+        assert all(f >= seed for f in traj.points)
+    finally:
+        src.close()
+
+
+def test_track_consecutive_points_are_close(test_video_path):
+    """Sanity: LK on a normal video shouldn't jump huge distances frame-to-frame."""
+    src = VideoSource(str(test_video_path))
+    try:
+        seed = src.total_frames // 2
+        # Pick a point likely to be on something textured (avoid pure center).
+        x, y = src.width * 0.4, src.height * 0.4
+        traj = track(src, seed, x, y)
+        sorted_frames = sorted(traj.points)
+        for a, b in zip(sorted_frames, sorted_frames[1:]):
+            if b - a == 1:  # adjacent frames only
+                ax, ay = traj.points[a]
+                bx, by = traj.points[b]
+                # 100 px is generous — well-behaved video should be much less.
+                assert abs(bx - ax) < 100, f"jump {a}->{b}: dx={bx-ax}"
+                assert abs(by - ay) < 100, f"jump {a}->{b}: dy={by-ay}"
+    finally:
+        src.close()
