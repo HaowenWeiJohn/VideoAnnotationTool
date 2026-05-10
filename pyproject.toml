@@ -1,0 +1,22 @@
+[project]
+name = "video-annotation"
+version = "0.1.0"
+description = "Desktop video annotation tool with Lucas-Kanade point tracking"
+requires-python = ">=3.11"
+dependencies = [
+    "PyQt6>=6.6",
+    "pyqtgraph>=0.13",
+    "opencv-python>=4.8",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["video_annotation*"]
+exclude = ["tests*"]
