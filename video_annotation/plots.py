@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
 from video_annotation.tracker import Trajectory
@@ -32,14 +32,27 @@ class DualPlot(QWidget):
         self._plot_x.getPlotItem().showAxis("bottom", True)
         self._plot_x.setXLink(self._plot_y)
 
-        # Disable user range manipulation — axes are display-only.
+        # Allow zoom/pan: X axis is shared (via setXLink above), Y is per-plot.
+        # Click-to-seek still works — pyqtgraph distinguishes click events from drags.
+        # StrongFocus + an event filter lets Left/Right arrow keys step frames
+        # once the user has clicked on a plot.
         for p in (self._plot_x, self._plot_y):
-            p.setMouseEnabled(x=False, y=False)
+            p.setMouseEnabled(x=True, y=True)
             p.hideButtons()
             p.setMenuEnabled(False)
+            p.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            p.installEventFilter(self)
 
-        self._curve_x = self._plot_x.plot(pen=pg.mkPen("#6c8eef", width=1.6), connect="finite")
-        self._curve_y = self._plot_y.plot(pen=pg.mkPen("#6c8eef", width=1.6), connect="finite")
+        curve_style = dict(
+            pen=pg.mkPen("#6c8eef", width=1.6),
+            symbol="o",
+            symbolSize=6,
+            symbolBrush=pg.mkBrush("#6c8eef"),
+            symbolPen=pg.mkPen(None),
+            connect="finite",
+        )
+        self._curve_x = self._plot_x.plot(**curve_style)
+        self._curve_y = self._plot_y.plot(**curve_style)
 
         self._vline_x = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen("#ffd370", style=Qt.PenStyle.DashLine))
         self._vline_y = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen("#ffd370", style=Qt.PenStyle.DashLine))
@@ -47,18 +60,26 @@ class DualPlot(QWidget):
         self._plot_y.addItem(self._vline_y)
 
         self._total_frames = 0
+        self._current_frame = 0
 
         self._plot_x.scene().sigMouseClicked.connect(self._on_scene_clicked_x)
         self._plot_y.scene().sigMouseClicked.connect(self._on_scene_clicked_y)
 
     def configure(self, total_frames: int, frame_width: int, frame_height: int) -> None:
         self._total_frames = total_frames
-        self._plot_x.setXRange(0, max(0, total_frames - 1), padding=0)
-        self._plot_x.setYRange(0, max(0, frame_width - 1), padding=0)
-        self._plot_y.setXRange(0, max(0, total_frames - 1), padding=0)
-        self._plot_y.setYRange(0, max(0, frame_height - 1), padding=0)
+        x_max = max(0, total_frames - 1)
+        y_max_x = max(0, frame_width - 1)
+        y_max_y = max(0, frame_height - 1)
+        self._plot_x.setXRange(0, x_max, padding=0)
+        self._plot_x.setYRange(0, y_max_x, padding=0)
+        self._plot_y.setXRange(0, x_max, padding=0)
+        self._plot_y.setYRange(0, y_max_y, padding=0)
+        # Bound user zoom/pan to the data range so they can't get lost in empty space.
+        self._plot_x.getViewBox().setLimits(xMin=0, xMax=x_max, yMin=0, yMax=y_max_x)
+        self._plot_y.getViewBox().setLimits(xMin=0, xMax=x_max, yMin=0, yMax=y_max_y)
 
     def set_current_frame(self, frame_idx: int) -> None:
+        self._current_frame = frame_idx
         self._vline_x.setPos(frame_idx)
         self._vline_y.setPos(frame_idx)
 
@@ -75,6 +96,17 @@ class DualPlot(QWidget):
             ys_y[f] = py
         self._curve_x.setData(xs, ys_x, connect="finite")
         self._curve_y.setData(xs, ys_y, connect="finite")
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.KeyPress and self._total_frames > 0:
+            key = event.key()
+            if key == Qt.Key.Key_Left:
+                self.frame_clicked.emit(max(0, self._current_frame - 1))
+                return True
+            if key == Qt.Key.Key_Right:
+                self.frame_clicked.emit(min(self._total_frames - 1, self._current_frame + 1))
+                return True
+        return super().eventFilter(obj, event)
 
     def _on_scene_clicked_x(self, ev) -> None:
         self._handle_scene_click(self._plot_x, ev)
