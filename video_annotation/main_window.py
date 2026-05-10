@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 
 from video_annotation.image_view import ImageView
 from video_annotation.plots import DualPlot
-from video_annotation.tracker import Trajectory
+from video_annotation.tracker import Trajectory, track
 from video_annotation.video_source import VideoSource
 
 
@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
         self._open_action.triggered.connect(self._open_video)
         self._slider.valueChanged.connect(self.set_current_frame)
         self._plots.frame_clicked.connect(self.set_current_frame)
+        self._image_view.point_clicked.connect(self.start_tracking)
 
     def _open_video(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -110,6 +111,18 @@ class MainWindow(QMainWindow):
         marker = self._trajectory.points.get(frame_idx) if self._trajectory else None
         self._image_view.show_frame(self._video.get_frame(frame_idx), marker=marker)
         self._update_status()
+
+    def start_tracking(self, x: float, y: float) -> None:
+        if self._video is None:
+            return
+        # Bound the click to the frame; LK is forgiving but we shouldn't seed off-screen.
+        if not (0 <= x < self._video.width and 0 <= y < self._video.height):
+            return
+        self._trajectory = track(self._video, self._current_frame, x, y)
+        self._plots.set_trajectory(self._trajectory)
+        # Re-render current frame so the new marker appears immediately.
+        marker = self._trajectory.points.get(self._current_frame)
+        self._image_view.show_frame(self._video.get_frame(self._current_frame), marker=marker)
 
     def _update_status(self) -> None:
         if self._video is None:
