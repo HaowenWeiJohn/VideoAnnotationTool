@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSignalBlocker
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
     QFileDialog,
@@ -65,6 +65,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("No video loaded")
 
         self._open_action.triggered.connect(self._open_video)
+        self._slider.valueChanged.connect(self.set_current_frame)
+        self._plots.frame_clicked.connect(self.set_current_frame)
 
     def _open_video(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -93,10 +95,20 @@ class MainWindow(QMainWindow):
         self._slider.setValue(0)
         self._plots.configure(new_video.total_frames, new_video.width, new_video.height)
         self._plots.set_trajectory(None)
-        self._plots.set_current_frame(0)
-        self._image_view.show_frame(new_video.get_frame(0), marker=None)
+        self.set_current_frame(0)
 
         self.setWindowTitle(f"Video Annotation — {Path(path).name}")
+
+    def set_current_frame(self, frame_idx: int) -> None:
+        if self._video is None:
+            return
+        frame_idx = max(0, min(self._video.total_frames - 1, frame_idx))
+        self._current_frame = frame_idx
+        with QSignalBlocker(self._slider):
+            self._slider.setValue(frame_idx)
+        self._plots.set_current_frame(frame_idx)
+        marker = self._trajectory.points.get(frame_idx) if self._trajectory else None
+        self._image_view.show_frame(self._video.get_frame(frame_idx), marker=marker)
         self._update_status()
 
     def _update_status(self) -> None:
