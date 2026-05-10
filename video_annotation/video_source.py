@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+from collections import OrderedDict
+from typing import Optional
+
 import cv2
+import numpy as np
+
+
+CACHE_SIZE = 64
 
 
 class VideoOpenError(RuntimeError):
@@ -22,8 +29,37 @@ class VideoSource:
                 f"invalid video metadata: frames={self.total_frames}, "
                 f"size={self.width}x{self.height}"
             )
+        self._cache: "OrderedDict[int, np.ndarray]" = OrderedDict()
+        self._read_count = 0  # exposed for tests
+
+    def get_frame(self, index: int) -> np.ndarray:
+        if index < 0 or index >= self.total_frames:
+            raise IndexError(f"frame index {index} out of range [0, {self.total_frames})")
+
+        cached = self._cache.get(index)
+        if cached is not None:
+            self._cache.move_to_end(index)
+            return cached
+
+        self._cap.set(cv2.CAP_PROP_POS_FRAMES, index)
+        ok, frame = self._cap.read()
+        self._read_count += 1
+        if not ok or frame is None:
+            # Corrupt frame mid-stream — return a recent good frame if we have one,
+            # and don't poison the cache with the bad index.
+            if self._cache:
+                last_index = next(reversed(self._cache))
+                return self._cache[last_index]
+            raise VideoOpenError(f"failed to read frame {index} and no fallback in cache")
+
+        self._cache[index] = frame
+        self._cache.move_to_end(index)
+        if len(self._cache) > CACHE_SIZE:
+            self._cache.popitem(last=False)
+        return frame
 
     def close(self) -> None:
         if self._cap is not None:
             self._cap.release()
             self._cap = None
+        self._cache.clear()
