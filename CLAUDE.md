@@ -1,0 +1,1 @@
+always use opus for subagents
