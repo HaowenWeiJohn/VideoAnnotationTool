@@ -192,14 +192,14 @@ D. │   Enhancements   │   • zoom/pan, dot markers, arrow keys
 
 > **Claude:** Frame access strategy:
 > 1. Preload all frames into RAM up-front
-> 2. On-demand `VideoCapture.read` + LRU cache of recent frames
+> 2. On-demand `VideoCapture.read` + LRU cache of recent frames **(Recommended)**
 > 3. Pre-decoded NumPy memmap on disk
 >
 > **You:** *"This is fine."*
 >
 > **Claude:** Locked in option 2 — on-demand seek + 64-frame LRU cache (`video_annotation/video_source.py`).
 
-> *Lesson: the brainstorming skill turns silent assumptions into enumerated choices. "You decide" is a perfectly valid answer — but you'd never have known the question existed otherwise.*
+> *Lesson: the brainstorming skill turns silent assumptions into enumerated choices and pre-marks its recommendation — you get to see the question, the alternatives, and Claude's default pick before committing to one.*
 
 ---
 
